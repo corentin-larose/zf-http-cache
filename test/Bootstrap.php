@@ -41,15 +41,15 @@ class Bootstrap
             $loader->add('Zend', $zf2Path.'/Zend');
         } else {
             include $zf2Path.'/Zend/Loader/AutoloaderFactory.php';
-            AutoloaderFactory::factory(array(
-                'Zend\Loader\StandardAutoloader' => array(
+            AutoloaderFactory::factory([
+                'Zend\Loader\StandardAutoloader' => [
                     'autoregister_zf' => true,
-                    'namespaces' => array(
-                        'ZF\HttpCache' => __DIR__.'/../src/',
+                    'namespaces' => [
+                        '\ZF\HttpCache' => __DIR__.'/../src/',
                         __NAMESPACE__ => __DIR__,
-                    ),
-                ),
-            ));
+                    ],
+                ],
+            ]);
         }
     }
 
