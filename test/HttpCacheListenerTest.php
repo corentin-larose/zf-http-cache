@@ -7,7 +7,7 @@ use Zend\Http\Request as HttpRequest;
 use Zend\Http\Response as HttpResponse;
 use Zend\Mvc\MvcEvent;
 use Zend\Mvc\Router\RouteMatch;
-use ZF\HttpCache\EtagGeneratorInterface;
+use ZF\HttpCache\ETagGeneratorInterface;
 use ZF\HttpCache\HttpCacheListener;
 
 class HttpCacheListenerTest extends \PHPUnit_Framework_TestCase
@@ -494,6 +494,11 @@ class HttpCacheListenerTest extends \PHPUnit_Framework_TestCase
                 ['Etag' => md5('')],
             ],
             [
+                ['vary' => [ ]],
+                ['Etag' => '1234'],
+                ['Etag' => '1234'],
+            ],
+            [
                 ['vary' => [
                     'override' => false
                 ]],
@@ -523,12 +528,12 @@ class HttpCacheListenerTest extends \PHPUnit_Framework_TestCase
                 200,
             ],
             [
-                ['If-Match' => '1234'],
+                ['If-None-Match' => '1234'],
                 ['Etag' => '1234'],
                 304,
             ],
             [
-                ['If-Match' => '1234'],
+                ['If-None-Match' => '1234'],
                 ['Etag' => 'something-else'],
                 200
             ],
@@ -728,7 +733,7 @@ class HttpCacheListenerTest extends \PHPUnit_Framework_TestCase
 
 
     /**
-     * @covers \ZF\HttpCache\HttpCacheListener::setvary
+     * @covers \ZF\HttpCache\HttpCacheListener::setETag
      * @dataProvider setEtagDataProvider
      *
      * @param array $cacheConfig
@@ -743,15 +748,15 @@ class HttpCacheListenerTest extends \PHPUnit_Framework_TestCase
         $headers  = $response->getHeaders()
             ->addHeaders($headers);
 
-        $this->instance->setEtag($headers, $response);
+        $this->instance->setETag(new HttpRequest(), $response);
 
         $this->assertSame($exHeaders, $headers->toArray());
     }
 
     public function testSetETagGenerator()
     {
-        $testGenerator = $this->prophesize(EtagGeneratorInterface::class);
-        $testGenerator->generateEtag(Argument::any())->willReturn('generated');
+        $testGenerator = $this->prophesize(ETagGeneratorInterface::class);
+        $testGenerator->generate(Argument::any(), Argument::any())->willReturn('generated');
 
         $container = $this->prophesize(ContainerInterface::class);
         $container->has('test-etag-generator')->willReturn(true);
@@ -768,7 +773,7 @@ class HttpCacheListenerTest extends \PHPUnit_Framework_TestCase
         $response = new HttpResponse();
         $headers  = $response->getHeaders();
 
-        $httpCacheListener->setEtag($headers, $response);
+        $httpCacheListener->setETag(new HttpRequest(), $response);
 
         $this->assertSame(['Etag' => 'generated'], $headers->toArray());
     }

@@ -119,7 +119,7 @@ class HttpCacheListener extends AbstractListenerAggregate
         $headers = $response->getHeaders();
 
         $this->setExpires($headers)
-            ->setEtag($headers, $response)
+            ->setETag($request, $response)
             ->setCacheControl($headers)
             ->setPragma($headers)
             ->setVary($headers)
@@ -295,19 +295,28 @@ class HttpCacheListener extends AbstractListenerAggregate
     }
 
     /**
-     * @param Headers $headers
+     * @param HttpRequest $request
      * @param HttpResponse $response
      * @return $this
      */
-    public function setEtag(Headers $headers, HttpResponse $response)
+    public function setETag(HttpRequest $request, HttpResponse $response)
     {
-        if (! empty($this->cacheConfig['etag'])
-            && (! $headers->has('etag')
-                || ! empty($this->cacheConfig['etag']['override']))
-        ) {
-            $etag = new Header\Etag($this->generateEtag($response));
-            $headers->addHeader($etag);
+        $headers = $response->getHeaders();
+
+        if (empty($this->cacheConfig['etag'])) {
+            return $this;
         }
+
+        // ETag is already set and we should not override, default is to not overwrite.
+        if ($headers->has('Etag')
+            && !empty($this->cacheConfig['etag']['override'])
+            && $this->cacheConfig['etag']['override'] === false) {
+
+            return $this;
+        }
+
+        $generator = $this->getETagGenerator();
+        $headers->addHeader(new Header\Etag($generator->generate($request, $response)));
 
         return $this;
     }
@@ -319,11 +328,11 @@ class HttpCacheListener extends AbstractListenerAggregate
      */
     public function setNotModified(HttpRequest $request, HttpResponse $response)
     {
-        if (!$request->getHeaders()->has('If-Match') || !$response->getHeaders()->has('Etag')) {
+        if (!$request->getHeaders()->has('If-None-Match') || !$response->getHeaders()->has('Etag')) {
             return $this;
         }
 
-        $requestEtags = $request->getHeaders()->get('If-Match')->getFieldValue();
+        $requestEtags = $request->getHeaders()->get('If-None-Match')->getFieldValue();
         $requestEtags = !is_array($requestEtags) ? [$requestEtags] : $requestEtags;
         $responseEtag = $response->getHeaders()->get('Etag')->getFieldValue();
 
@@ -336,25 +345,22 @@ class HttpCacheListener extends AbstractListenerAggregate
     }
 
     /**
-     * Generates an Etag based on the response.
+     * Returns an instance of a ETag generator.
      *
-     * @param HttpResponse $response
-     * @return string Etag
+     * @return ETagGeneratorInterface
      */
-    protected function generateEtag(HttpResponse $response)
+    protected function getETagGenerator()
     {
-        $generator = new DefaultEtagGenerator();
-
         // Use custom generator.
         if (!empty($this->container)
             && !empty($this->cacheConfig['etag']['generator'])
             && $this->container->has($this->cacheConfig['etag']['generator'])
             && $this->container->get($this->cacheConfig['etag']['generator']) instanceof EtagGeneratorInterface
         ) {
-            $generator = $this->container
+            return $this->container
                 ->get($this->cacheConfig['etag']['generator']);
         }
 
-        return $generator->generateEtag($response);
+        return new DefaultETagGenerator();
     }
 }
